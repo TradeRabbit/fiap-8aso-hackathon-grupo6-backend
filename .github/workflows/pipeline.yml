@@ -24,6 +24,7 @@ jobs:
       run: |
         gcloud auth configure-docker
       
+      
     # Build the Docker image
     - name: Docker Login
       env:
