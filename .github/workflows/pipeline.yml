@@ -26,8 +26,8 @@ jobs:
           env: 
             ARTIFACT_REGISTRY: ${{ secrets.ARTIFACT_REGISTRY }}
           run: | 
-            docker build -t ${{ secrets.ARTIFACT_REGISTRY }}/app:latest .
-            docker push ${{ secrets.ARTIFACT_REGISTRY }}/app:latest
+            docker build -t ${{ secrets.ARTIFACT_REGISTRY }}/backend:latest .
+            docker push ${{ secrets.ARTIFACT_REGISTRY }}/backend:latest
 
   Deploy:
     needs: Build
