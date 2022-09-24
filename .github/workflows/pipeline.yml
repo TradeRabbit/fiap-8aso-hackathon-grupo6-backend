@@ -25,16 +25,16 @@ jobs:
         gcloud auth configure-docker
       
     # Build the Docker image
-    - name: Build & Publish
-      run: |
-        gcloud config set project ${{ secrets.GCP_PROJECT }}
-        gcloud builds submit --tag gcr.io/${{ secrets.GCP_PROJECT }}/${{ secrets.GCP_APPLICATION }}
-        gcloud config set run/region us-central1
-      
-    # Deploy the Docker image to the GKE cluster
-    - name: Deploy
-      run: |
-        gcloud run deploy ${{ secrets.GCP_APPLICATION }} --image gcr.io/${{ secrets.GCP_PROJECT }}/${{ secrets.GCP_APPLICATION }} \
-        --platform managed \
-        --allow-unauthenticated \
-        --memory 512M
+    - name: Docker Login
+      env:
+        GOOGLE_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+        ARTIFACT_REGISTRY:  ${{ secrets.ARTIFACT_REGISTRY}}
+      run: | 
+        echo '${{ secrets.GOOGLE_CREDENTIALS }}' > key.json
+        cat key.json | docker login -u _json_key --password-stdin ${{ secrets.ARTIFACT_REGISTRY }}
+    - name: Build Image & Push
+      env: 
+        ARTIFACT_REGISTRY_REPO: ${{ secrets.ARTIFACT_REGISTRY_REPO }}
+      run: | 
+        docker build -t ${{ secrets.ARTIFACT_REGISTRY_REPO }}/myapp:latest .
+        docker push ${{ secrets.ARTIFACT_REGISTRY_REPO }}/myapp:latest
