@@ -3,6 +3,13 @@ on:
   push:
     branches:
       - main
+
+env:
+  PROJECT_ID: ${{ secrets.GCR_PROJECT }}
+  RUN_REGION: us-central1
+  SERVICE_NAME: hack-grupo-06-frontbackend
+  GAR_LOCATION: YOUR_GAR_LOCATION # TODO: update Artifact Registry location
+
 jobs:
   setup-build-publish-deploy:
     name: Setup, Build, Publish, and Deploy
@@ -40,8 +47,12 @@ jobs:
         docker build -t ${{ secrets.ARTIFACT_REGISTRY_REPO }}/app:latest .
         docker push ${{ secrets.ARTIFACT_REGISTRY_REPO }}/app:latest
 
-    # Publish
-    - id: 'deploy'
-      uses: 'google-github-actions/deploy-cloudrun@v0'
-      with:
-        image: ${{ secrets.ARTIFACT_REGISTRY_REPO }}/app:latest
+    # Deploy image to Cloud Run
+    - name: Deploy GCR
+      run: |-
+        gcloud run deploy “$SERVICE_NAME” \
+            --quiet \
+            --region “$RUN_REGION” \
+            --image ${{ secrets.ARTIFACT_REGISTRY_REPO }}/app:latest \
+            --platform “managed” \
+            --allow-unauthenticated
