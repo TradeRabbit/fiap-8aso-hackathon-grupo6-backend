@@ -1,52 +1,59 @@
-name: cloudrun-deploy
-on:
+# Nome do Workflow
+name: Backend Pipeline - Hackathon
+
+# Evento que irá acionar a pipeline
+on: 
   push:
     branches:
       - main
 
 jobs:
-  setup-build-publish-deploy:
-    name: Setup, Build, Publish, and Deploy
+  Build:
+      name: Build
+      runs-on: ubuntu-latest
+      steps: 
+        - name: Clone do Repositório
+          uses: actions/checkout@v2
+
+        - name: Login no Google Artifact Registry
+          env:
+            GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          run: | 
+            echo '${{ secrets.GOOGLE_CREDENTIALS }}' > key.json
+            cat key.json | docker login -u _json_key --password-stdin https://us-central1-docker.pkg.dev/
+
+        - name: Build Imag & Push para Google Registry
+          env: 
+            ARTIFACT_REGISTRY: ${{ secrets.ARTIFACT_REGISTRY }}
+          run: | 
+            docker build -t ${{ secrets.ARTIFACT_REGISTRY }}/backend:latest .
+            docker push ${{ secrets.ARTIFACT_REGISTRY }}/backend:latest
+
+  Deploy:
+    needs: Build
     runs-on: ubuntu-latest
+
     steps:
-    - name: Checkout
-      uses: actions/checkout@v2
+      - name: Clone do Repositório
+        uses: actions/checkout@v2
 
+      - name: Autenticação no Google Cloud
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        uses: 'google-github-actions/auth@v0'
+        with:
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
 
-    # Setup gcloud CLI
-    - uses: google-github-actions/setup-gcloud@v0
-      with:
-        service_account_email: ${{ secrets.GCP_EMAIL }}
-        service_account_key: ${{ secrets.GCP_CREDENTIALS }}
-        export_default_credentials: true
-    
-    # Configure Docker with Credentials
-    - name: Configure Docker
-      run: |
-        gcloud auth configure-docker
-      
-
-    # Build the Docker image
-    - name: Docker Login
-      env:
-        GOOGLE_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
-        ARTIFACT_REGISTRY:  ${{ secrets.ARTIFACT_REGISTRY}}
-      run: | 
-        echo '${{ secrets.GCP_CREDENTIALS }}' > key.json
-        cat key.json | docker login -u _json_key --password-stdin ${{ secrets.ARTIFACT_REGISTRY }}
-    - name: Build Image & Push
-      env: 
-        ARTIFACT_REGISTRY_REPO: ${{ secrets.ARTIFACT_REGISTRY_REPO }}
-      run: | 
-        docker build -t ${{ secrets.ARTIFACT_REGISTRY_REPO }}/app:latest .
-        docker push ${{ secrets.ARTIFACT_REGISTRY_REPO }}/app:latest
-
-    # Deploy image to Cloud Run
-    - name: Deploy GCR
-      run: |-
-        gcloud run deploy hack-grupo-06-backend \
+      - name: Deploy Backend no  Cloud Run
+        id: deploy
+        run: |-
+          gcloud run deploy backend \
             --quiet \
-            --region us-central1 \
-            --image ${{ secrets.ARTIFACT_REGISTRY_REPO }}/app:latest \
-            --platform “managed” \
-            --allow-unauthenticated
+            --region  ${{ secrets.GOOGLE_REGION }} \
+            --image ${{ secrets.ARTIFACT_REGISTRY }}/backend:latest \
+            --platform managed \
+            --set-env-vars CLOUD_SQL_CONNECTION_NAME=${{ secrets.CLOUD_SQL_CONNECTION_NAME }},CLOUD_SQL_DATABASE_NAME=${{ secrets.CLOUD_SQL_DATABASE_NAME }},CLOUD_SQL_PASSWORD=${{ secrets.CLOUD_SQL_PASSWORD }},CLOUD_SQL_USERNAME=${{ secrets.CLOUD_SQL_USERNAME }} \
+            --allow-unauthenticated \
+            --add-cloudsql-instances ${{ secrets.CLOUD_SQL_CONNECTION_NAME }} \
+            --project ${{ secrets.GOOGLE_PROJECT_ID }} \
+            --format json
